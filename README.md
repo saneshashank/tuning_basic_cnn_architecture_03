@@ -29,7 +29,7 @@ tuning_basic_cnn_architecture_03/
 
 ## 🔬 Detailed Notebook Analysis
 
-### Notebook 01: Baseline Model (~15k params)
+### Notebook 01: Large First Model (~15k params)
 
 **Purpose:**
 - Develop a robust CNN with more than 10k but less than 20k parameters
@@ -48,7 +48,7 @@ tuning_basic_cnn_architecture_03/
 - Suggests possible parameter reduction without much loss
 - Max-pooling layer placement is crucial for optimal feature extraction
 
-### Notebook 02: Small Model (<5k params)
+### Notebook 02: Very Small Model (<5k params)
 
 **Purpose:**
 - Test how far the parameter count can be reduced
@@ -118,41 +118,104 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=128, shuffl
 ## 📈 Model Architecture (Final Optimized - Model 3)
 
 ```python
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
-        # Initial conv layer with 10 output channels (matching MNIST classes)
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(10, 14, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(14, 16, kernel_size=3, padding=1)
-        self.conv4 = nn.Conv2d(16, 18, kernel_size=3, padding=1)
+        # Input Block 28
+        self.convblock1 = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=8, kernel_size=(3, 3), padding=0, bias=False),
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+            # nn.BatchNorm2d(8),
+        ) # output_size = 26
+
+        # CONVOLUTION BLOCK 1
+        self.convblock2 = nn.Sequential(
+            nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(3, 3), padding=0, bias=False),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            # nn.BatchNorm2d(16),
+
+        ) # output_size = 24
+        self.convblock3 = nn.Sequential(
+            nn.Conv2d(in_channels=16, out_channels=16, kernel_size=(3, 3), padding=0, bias=False),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            # nn.BatchNorm2d(16),
+
+        ) # output_size = 22 
+
+        # TRANSITION BLOCK 1
+        self.pool1 = nn.MaxPool2d(2, 2) # output_size = 11
+        self.convblock4 = nn.Sequential(
+            nn.Conv2d(in_channels=16, out_channels=10, kernel_size=(1, 1), padding=0, bias=False),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+            # nn.BatchNorm2d(8),
+
+        ) # output_size = 11
+
+        # CONVOLUTION BLOCK 2
+        self.convblock5 = nn.Sequential(
+            nn.Conv2d(in_channels=10, out_channels=16, kernel_size=(3, 3), padding=0, bias=False),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            # nn.BatchNorm2d(16),
+
+        ) # output_size = 9 
+        self.convblock6 = nn.Sequential(
+            nn.Conv2d(in_channels=16, out_channels=10, kernel_size=(3, 3), padding=1, bias=False),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+            # nn.BatchNorm2d(16),
+
+        ) # output_size = 9 
         
-        # Global Average Pooling replacement for FC layers
-        self.gap = nn.AdaptiveAvgPool2d(1)
-        
-        # Final convolution after GAP for better feature representation
-        self.conv5 = nn.Conv2d(18, 10, kernel_size=1)
-        
-        self.dropout = nn.Dropout(0.05)
-        
+
+        # OUTPUT BLOCK
+        self.convblock7 = nn.Sequential(
+            nn.Conv2d(in_channels=10, out_channels=10, kernel_size=(3,3), padding=0, bias=False),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+            # nn.BatchNorm2d(10),
+
+        ) # output_size = 7 
+        self.gap = nn.Sequential(
+            nn.AvgPool2d(kernel_size=7) 
+        ) # output_size = 1
+
+        self.convblock8 = nn.Sequential(
+            nn.Conv2d(in_channels=10, out_channels=10, kernel_size=(1, 1), padding=0, bias=False),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+            # nn.BatchNorm2d(10),
+
+        )
+
+        self.dropout = nn.Dropout(0.05) # Reduced dropout rate
+
     def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.max_pool2d(x, 2)
+        x = self.convblock1(x)
         x = self.dropout(x)
-        
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.conv4(x))
-        x = F.max_pool2d(x, 2)
+        x = self.convblock2(x)
         x = self.dropout(x)
-        
+        x = self.convblock3(x)
+        x = self.pool1(x)
+        x = self.convblock4(x)
+        x = self.dropout(x)
+        x = self.convblock5(x)
+        x = self.dropout(x)
+        x = self.convblock6(x)
+        x = self.dropout(x)
+        x = self.convblock7(x)
         x = self.gap(x)
-        x = self.conv5(x)
+        x = self.convblock8(x)
         x = x.view(-1, 10)
-        return F.log_softmax(x, dim=1)
+        return F.log_softmax(x, dim=-1)
 ```
 
 ## 🚀 Usage Instructions
@@ -264,7 +327,7 @@ The notebooks include comprehensive visualizations:
 4. **Expected Results**:
    - Parameters: ~7,760
    - Test Accuracy: >99.4%
-   - Training Time: ~5-10 minutes on CPU
+   - Training Time: ~15 minutes on Collab GPU
 
 ### Hyperparameter Sensitivity:
 
